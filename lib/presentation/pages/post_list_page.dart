@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
+import 'package:connectivity_plus/connectivity_plus.dart';
+import 'package:fluttertoast/fluttertoast.dart';
 import 'package:flutter_post_management_crud/presentation/blocs/post_bloc.dart';
 import 'package:flutter_post_management_crud/presentation/blocs/post_event.dart';
 import 'package:flutter_post_management_crud/presentation/blocs/post_state.dart';
@@ -43,9 +45,22 @@ class _PostListPageState extends State<PostListPage> {
     super.dispose();
   }
 
+  // Modified _refresh method to check connectivity before refreshing.
   Future<void> _refresh() async {
-    BlocProvider.of<PostBloc>(context)
-        .add(const FetchPosts(isRefresh: true));
+    final connectivityResult = await Connectivity().checkConnectivity();
+    if (connectivityResult == ConnectivityResult.none) {
+      Fluttertoast.showToast(
+        msg: "No internet connection. Please check your connection.",
+        toastLength: Toast.LENGTH_SHORT,
+        gravity: ToastGravity.BOTTOM,
+        backgroundColor: Colors.red,
+        textColor: Colors.white,
+      );
+      // Do not trigger a refresh; keep already loaded posts.
+      return;
+    }
+    // If connected, dispatch a refresh event.
+    BlocProvider.of<PostBloc>(context).add(const FetchPosts(isRefresh: true));
   }
 
   @override
@@ -56,7 +71,6 @@ class _PostListPageState extends State<PostListPage> {
       ),
       floatingActionButton: FloatingActionButton(
         onPressed: () {
-          //context.go('/post');
           context.push('/post');
         },
         child: const Icon(Icons.add),
@@ -81,16 +95,41 @@ class _PostListPageState extends State<PostListPage> {
                     final post = state.posts[index];
                     return PostItem(post: post);
                   } else {
-                    // Display either a loading indicator or an "End of Posts" message.
-                    return state.hasReachedMax
-                        ? const Padding(
-                      padding: EdgeInsets.all(8.0),
-                      child: Center(child: Text('End of Posts')),
-                    )
-                        : const Padding(
-                      padding: EdgeInsets.all(8.0),
-                      child: Center(child: CircularProgressIndicator()),
-                    );
+                    // This extra widget displays loading, error, or "End of Posts"
+                    if (state.errorMessage != null) {
+                      return Padding(
+                        padding: const EdgeInsets.all(8.0),
+                        child: Center(
+                          child: Column(
+                            children: [
+                              Text(
+                                'Error: ${state.errorMessage}',
+                                style: const TextStyle(color: Colors.red),
+                                textAlign: TextAlign.center,
+                              ),
+                              const SizedBox(height: 8),
+                              ElevatedButton(
+                                onPressed: () {
+                                  BlocProvider.of<PostBloc>(context)
+                                      .add(const FetchPosts());
+                                },
+                                child: const Text('Retry'),
+                              ),
+                            ],
+                          ),
+                        ),
+                      );
+                    } else if (state.hasReachedMax) {
+                      return const Padding(
+                        padding: EdgeInsets.all(8.0),
+                        child: Center(child: Text('End of Posts')),
+                      );
+                    } else {
+                      return const Padding(
+                        padding: EdgeInsets.all(8.0),
+                        child: Center(child: CircularProgressIndicator()),
+                      );
+                    }
                   }
                 },
               ),

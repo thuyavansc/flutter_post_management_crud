@@ -20,7 +20,6 @@ class PostBloc extends Bloc<PostEvent, PostState> {
   Future<void> _onFetchPosts(
       FetchPosts event, Emitter<PostState> emit) async {
     try {
-      // For refresh or first load
       List<Post> posts = [];
       if (event.isRefresh || state is PostInitial) {
         emit(PostLoading());
@@ -33,9 +32,19 @@ class PostBloc extends Bloc<PostEvent, PostState> {
       currentStart += postLimit;
       final hasReachedMax = newPosts.length < postLimit;
       posts.addAll(newPosts);
-      emit(PostLoaded(posts: posts, hasReachedMax: hasReachedMax));
+      // On successful fetch, clear any previous error message.
+      emit(PostLoaded(
+          posts: posts, hasReachedMax: hasReachedMax, errorMessage: null));
     } catch (e) {
-      emit(PostError(message: e.toString()));
+      if (state is PostLoaded) {
+        // If posts were already loaded, update the state with the error message.
+        emit((state as PostLoaded).copyWith(
+          errorMessage: e.toString(),
+        ));
+      } else {
+        // If this is the initial load, emit a full error state.
+        emit(PostError(message: e.toString()));
+      }
     }
   }
 

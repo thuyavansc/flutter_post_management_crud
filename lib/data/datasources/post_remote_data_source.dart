@@ -1,5 +1,6 @@
 import 'package:dio/dio.dart';
 import 'dart:convert';
+import 'dart:io'; // For SocketException
 
 class PostRemoteDataSource {
   final Dio _dio;
@@ -35,7 +36,7 @@ class PostRemoteDataSource {
           queryParameters: {'_start': start, '_limit': limit});
       return response.data;
     } catch (error) {
-      throw Exception('Failed to fetch posts: $error');
+      throw Exception('Failed to fetch posts: ${_mapDioError(error)}');
     }
   }
 
@@ -48,7 +49,7 @@ class PostRemoteDataSource {
           data: {'title': title, 'body': body, 'userId': 1});
       return response.data;
     } catch (error) {
-      throw Exception('Failed to create post: $error');
+      throw Exception('Failed to create post: ${_mapDioError(error)}');
     }
   }
 
@@ -62,7 +63,7 @@ class PostRemoteDataSource {
           data: {'title': title, 'body': body, 'userId': 1});
       return response.data;
     } catch (error) {
-      throw Exception('Failed to update post: $error');
+      throw Exception('Failed to update post: ${_mapDioError(error)}');
     }
   }
 
@@ -70,7 +71,40 @@ class PostRemoteDataSource {
     try {
       await _dio.delete('/posts/$id');
     } catch (error) {
-      throw Exception('Failed to delete post: $error');
+      throw Exception('Failed to delete post: ${_mapDioError(error)}');
+    }
+  }
+
+  /// Centralized error mapper that converts Dio errors to user-friendly messages.
+  String _mapDioError(dynamic error) {
+    if (error is DioException) {
+      switch (error.type) {
+        case DioExceptionType.connectionTimeout:
+          return "Connection timeout. Please try again later.";
+        case DioExceptionType.sendTimeout:
+          return "Request send timeout. Please try again later.";
+        case DioExceptionType.receiveTimeout:
+          return "Response timeout. Please try again later.";
+        case DioExceptionType.badResponse:
+          if (error.response?.statusCode == 401) {
+            return "Unauthorized. Please log in.";
+          } else if (error.response?.statusCode != null &&
+              error.response!.statusCode! >= 500) {
+            return "Server error. Please try again later.";
+          } else {
+            return "Received invalid status code: ${error.response?.statusCode}";
+          }
+        case DioExceptionType.cancel:
+          return "Request was cancelled.";
+        case DioExceptionType.connectionError:
+          return "No internet connection. Please check your network.";
+        default:
+          return "Unexpected error occurred. Please try again.";
+      }
+    } else if (error is SocketException) {
+      return "No internet connection. Please check your network.";
+    } else {
+      return "Unexpected error occurred. Please try again.";
     }
   }
 
