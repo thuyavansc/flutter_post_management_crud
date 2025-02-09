@@ -5,6 +5,8 @@ import 'package:flutter_post_management_crud/presentation/blocs/post_bloc.dart';
 import 'package:flutter_post_management_crud/presentation/blocs/post_event.dart';
 import 'package:flutter_post_management_crud/utils/validators.dart';
 import 'package:go_router/go_router.dart';
+import 'package:connectivity_plus/connectivity_plus.dart';
+import 'package:fluttertoast/fluttertoast.dart';
 
 class PostFormPage extends StatefulWidget {
   final Post? post;
@@ -33,20 +35,32 @@ class _PostFormPageState extends State<PostFormPage> {
     super.dispose();
   }
 
-  void _submit() {
+  Future<void> _submit() async {
+    // Check connectivity before attempting to submit.
+    final connectivityResult = await Connectivity().checkConnectivity();
+    if (connectivityResult == ConnectivityResult.none) {
+      Fluttertoast.showToast(
+        msg: "No internet connection. Cannot submit post.",
+        toastLength: Toast.LENGTH_SHORT,
+        gravity: ToastGravity.BOTTOM,
+        backgroundColor: Colors.red,
+        textColor: Colors.white,
+      );
+      return;
+    }
+
     if (_formKey.currentState?.validate() ?? false) {
       final title = _titleController.text;
       final body = _bodyController.text;
       if (widget.post == null) {
-        // Create new post
         BlocProvider.of<PostBloc>(context)
             .add(CreatePostEvent(title: title, body: body));
       } else {
-        // Update existing post
         BlocProvider.of<PostBloc>(context).add(UpdatePostEvent(
             id: widget.post!.id, title: title, body: body));
       }
-      context.pop(); // Return to the previous screen.
+      // Close the form page after a successful submission.
+      context.pop();
     }
   }
 
